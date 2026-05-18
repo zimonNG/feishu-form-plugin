@@ -24,7 +24,7 @@
             document.getElementById("list").innerHTML = "加载中...";
             try {
                 // 直接用飞书SDK自带方法获取数据，不用fetch和token
-                const tableList = await lark.bitable.listTables();
+                const tableList = await lark.bitable.listTables();  
                 let html = "";
                 tableList.forEach(async (table) => {
                     const views = await lark.bitable.listViews({ table_id: table.table_id });
