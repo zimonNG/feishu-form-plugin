@@ -2,57 +2,223 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>表单链接汇总</title>
-  <script src="https://sf3-cn.feishucdn.com/obj/open-platform-opensdk/lark/2.1.14/lark.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>批量生成表单分享链接</title>
   <style>
-    body { padding: 15px; font-size: 14px; }
-    .item { margin: 8px 0; padding: 6px; border: 1px solid #eee; border-radius: 4px; }
-    .btn { background: #2663eb; color: #fff; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin: 10px 0; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f6f8; padding: 16px; min-height: 100vh; }
+    .container { max-width: 640px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    h2 { font-size: 18px; font-weight: 600; color: #1f2329; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 500;
+      border: none; cursor: pointer; transition: 0.2s; background: #3370ff; color: #fff;
+    }
+    .btn:hover { background: #2860d4; }
+    .btn:disabled { background: #c9d1d8; cursor: not-allowed; }
+    .form-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0; border-bottom: 1px solid #f0f1f4;
+    }
+    .form-item:last-child { border-bottom: none; }
+    .form-name { font-size: 15px; color: #1f2329; word-break: break-all; margin-right: 12px; flex: 1; }
+    .link-text { font-size: 12px; color: #646a73; background: #f5f6f8; padding: 6px 10px; border-radius: 6px; word-break: break-all; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .copy-btn { background: none; border: 1px solid #dee0e3; padding: 5px 12px; border-radius: 6px; font-size: 12px; color: #3370ff; cursor: pointer; margin-left: 8px; white-space: nowrap; }
+    .copy-btn:hover { background: #f0f4ff; }
+    .status { font-size: 13px; color: #8f959e; text-align: center; margin-top: 12px; }
+    .error-msg { color: #e33e38; font-size: 13px; margin-top: 8px; }
   </style>
 </head>
 <body>
-    <button class="btn" onclick="getAllForm()">获取本表所有表单链接</button>
-    <button class="btn" onclick="copyAll()">一键复制所有链接</button>
-    <div id="list"></div>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <h2>📋 表单分享链接生成器</h2>
+        <button class="btn" id="generateBtn" onclick="generateLinks()">一键生成</button>
+      </div>
+      <div id="listContainer"></div>
+      <div class="status" id="status"></div>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+    <div style="font-size:12px; color:#8f959e; text-align:center;margin-top:8px;">
+      该插件会自动读取当前表格中的所有表单视图并生成分享链接
+    </div>
+  </div>
 
-    <script>
-        let copyText = "";
-        lark.init({ appId: "cli_aa8028ca6d38dbeb" });
+  <!-- 飞书多维表格插件 SDK (新版本CDN) -->
+  <script src="https://lf1-cdn-tos.bytescm.com/obj/static/lark-block-sdk/latest/block-sdk.js"></script>
+  <script>
+    // 全局变量
+    let blockApi = null;
 
-        async function getAllForm() {
-            copyText = "";
-            document.getElementById("list").innerHTML = "加载中...";
-            try {
-                // 直接用飞书SDK自带方法获取数据，不用fetch和token
-                const tableList = await lark.bitable.listTables();  
-                let html = "";
-                tableList.forEach(async (table) => {
-                    const views = await lark.bitable.listViews({ table_id: table.table_id });
-                    views.forEach(item => {
-                        if (item.type === "form") {
-                            let formLink = `https://feishu.cn/form/${item.view_id}`;
-                            html += `<div class="item">${item.name}：<a href="${formLink}" target="_blank">${formLink}</a></div>`;
-                            copyText += `${item.name}：${formLink}\n`;
-                        }
-                    });
-                    document.getElementById("list").innerHTML = html || "未找到任何表单";
-                });
-            } catch (err) {
-                document.getElementById("list").innerHTML = `获取失败：${err.message}`;
-            }
+    // 初始化函数：等待 SDK 加载并初始化
+    async function initSDK() {
+      const statusEl = document.getElementById('status');
+      const btn = document.getElementById('generateBtn');
+      
+      try {
+        // 等待 larkBlockSdk 全局对象出现（最多等5秒）
+        let retries = 0;
+        while (!window.larkBlockSdk && retries < 50) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          retries++;
+        }
+        
+        if (!window.larkBlockSdk) {
+          throw new Error('SDK 加载超时，请刷新页面重试');
         }
 
-        function copyAll() {
-            if (!copyText) {
-                alert("请先获取表单链接！");
-                return;
-            }
-            navigator.clipboard.writeText(copyText).then(() => {
-                alert("已复制到剪贴板！");
-            }).catch(err => {
-                alert("复制失败，请手动复制");
+        // 初始化 SDK
+        blockApi = await window.larkBlockSdk.init({});
+        console.log('✅ 飞书多维表格插件已初始化');
+        statusEl.textContent = '插件已就绪';
+        btn.disabled = false;
+        
+      } catch (err) {
+        console.error('初始化失败:', err);
+        statusEl.textContent = '初始化失败: ' + err.message;
+        btn.disabled = true;
+      }
+    }
+
+    // 页面加载后自动初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = true; // 初始化完成前禁用按钮
+      document.getElementById('status').textContent = '正在初始化...';
+      initSDK();
+    });
+
+    async function generateLinks() {
+      const btn = document.getElementById('generateBtn');
+      const statusEl = document.getElementById('status');
+      const errorEl = document.getElementById('errorMsg');
+      const listContainer = document.getElementById('listContainer');
+
+      if (!blockApi) {
+        errorEl.textContent = '插件未初始化，请刷新页面';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '生成中...';
+      statusEl.textContent = '';
+      errorEl.textContent = '';
+      listContainer.innerHTML = '';
+
+      try {
+        // 1. 获取当前表格的 appToken
+        const appToken = await blockApi.getAppToken();
+        if (!appToken) throw new Error('无法获取表格标识');
+
+        // 2. 获取视图列表（自动分页）
+        let allViews = [];
+        let pageToken = null;
+        do {
+          const res = await blockApi.request({
+            url: `/open-apis/bitable/v1/apps/${appToken}/tables/views`,
+            method: 'GET',
+            params: pageToken ? { page_token: pageToken, page_size: 500 } : { page_size: 500 }
+          });
+          const data = res.data;
+          if (data.items) allViews = allViews.concat(data.items);
+          pageToken = data.has_more ? data.page_token : null;
+        } while (pageToken);
+
+        // 3. 筛选出表单视图
+        const formViews = allViews.filter(v => v.type === 'form');
+        if (formViews.length === 0) {
+          statusEl.textContent = '当前表格没有表单视图';
+          btn.textContent = '一键生成';
+          btn.disabled = false;
+          return;
+        }
+
+        // 4. 为每个表单视图创建分享链接
+        const results = [];
+        for (const view of formViews) {
+          try {
+            const shareRes = await blockApi.request({
+              url: '/open-apis/drive/v1/explorer/share_link/create',
+              method: 'POST',
+              data: {
+                token: appToken,
+                type: 'bitable',
+                view_id: view.id
+              }
             });
+            results.push({
+              name: view.name || '未命名表单',
+              link: shareRes.data.share_link
+            });
+          } catch (err) {
+            results.push({
+              name: view.name || '未命名表单',
+              link: null,
+              error: err.message || '创建分享链接失败'
+            });
+          }
         }
-    </script>
+
+        // 5. 渲染结果
+        if (results.length === 0) {
+          statusEl.textContent = '没有成功生成任何分享链接';
+        } else {
+          listContainer.innerHTML = results.map((item) => `
+            <div class="form-item">
+              <div class="form-name">${escapeHtml(item.name)}</div>
+              <div style="display:flex; align-items:center;">
+                <div class="link-text" title="${item.link || '生成失败: ' + item.error}">${item.link || '（失败）'}</div>
+                ${item.link ? `<button class="copy-btn" onclick="copyToClipboard('${escapeAttr(item.link)}', this)">复制</button>` : ''}
+              </div>
+            </div>
+          `).join('');
+          statusEl.textContent = `共生成 ${results.filter(r => r.link).length}/${results.length} 个表单分享链接`;
+        }
+      } catch (err) {
+        errorEl.textContent = '操作失败：' + (err.message || '未知错误');
+        console.error(err);
+      } finally {
+        btn.textContent = '一键生成';
+        btn.disabled = false;
+      }
+    }
+
+    function copyToClipboard(text, btnEl) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          showCopyTip(btnEl, '已复制');
+        }).catch(() => {
+          fallbackCopy(text, btnEl);
+        });
+      } else {
+        fallbackCopy(text, btnEl);
+      }
+    }
+
+    function fallbackCopy(text, btnEl) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try { document.execCommand('copy'); showCopyTip(btnEl, '已复制'); } catch (e) { showCopyTip(btnEl, '复制失败'); }
+      document.body.removeChild(textarea);
+    }
+
+    function showCopyTip(btn, msg) {
+      const orig = btn.textContent;
+      btn.textContent = msg;
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function escapeAttr(str) {
+      return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+  </script>
 </body>
 </html>
