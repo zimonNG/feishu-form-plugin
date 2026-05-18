@@ -1,77 +1,52 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>±íµ¥Á´½Ó»ã×Ü</title>
-    <script src="https://sf3-cn.feishucdn.com/obj/open-platform-opensdk/lark/2.1.14/lark.js"></script>
-    <style>
-        body { padding: 15px; font-size: 14px; }
-        .item { margin: 8px 0; padding: 6px; border: 1px solid #eee; border-radius: 4px; }
-        .btn { background: #2663eb; color: #fff; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin: 10px 0; }
-    </style>
+  <meta charset="UTF-8">
+  <title>è¡¨å•é“¾æ¥å·¥å…·</title>
+  <script src="https://lf6-cn-toutiao.byteintl.net/obj/feishu-open-platform/feishu-sdk/feishu-sdk.min.js"></script>
+  <style>
+    *{margin:0;padding:10px;box-sizing:border-box;font-family:system-ui;}
+    button{padding:12px 16px;background:#0066ff;color:white;border:none;border-radius:8px;margin:10px;cursor:pointer;}
+    #result{white-space:pre-wrap;line-height:1.6;}
+  </style>
 </head>
 <body>
-    <button class="btn" onclick="getAllForm()">»ñÈ¡±¾±íËùÓĞ±íµ¥Á´½Ó</button>
-    <button class="btn" onclick="copyAll()">Ò»¼ü¸´ÖÆËùÓĞÁ´½Ó</button>
-    <div id="list"></div>
+  <button onclick="getForms()">è·å–æ‰€æœ‰è¡¨å•é“¾æ¥</button>
+  <button onclick="copyAll()">å¤åˆ¶å…¨éƒ¨é“¾æ¥</button>
+  <div id="result"></div>
 
-    <script>
-        let copyText = "";
-        lark.init({ appId: "cli_aa8028ca6d38dbeb" });
+  <script>
+    let allLinks = "";
+    const $ = id => document.getElementById(id);
 
-        async function getAllForm() {
-            copyText = "";
-            document.getElementById("list").innerHTML = "¼ÓÔØÖĞ...";
-            try {
-                let res = await lark.bitable.getActiveTable();
-                let baseId = res.baseId;
-                let views = await getViewList(baseId);
-                let html = "";
-                views.forEach(item => {
-                    if (item.type === "form") {
-                        let formLink = `https://feishu.cn/form/${item.view_id}`;
-                        html += `<div class="item">${item.name}£º<a href="${formLink}" target="_blank">${formLink}</a></div>`;
-                        copyText += `${item.name}£º${formLink}\n`;
-                    }
-                });
-                document.getElementById("list").innerHTML = html || "Î´ÕÒµ½ÈÎºÎ±íµ¥";
-            } catch (err) {
-                document.getElementById("list").innerHTML = `»ñÈ¡Ê§°Ü£º${err.message}`;
+    async function getForms() {
+      try {
+        $("result").innerText = "åŠ è½½ä¸­...";
+        const info = await window.feishu.bitable.getAppInfo();
+        const tables = await window.feishu.bitable.listTables();
+        let text = "";
+        allLinks = "";
+
+        for (let table of tables) {
+          const views = await window.feishu.bitable.listViews({ table_id: table.table_id });
+          for (let v of views) {
+            if (v.type === "form") {
+              const url = `https://feishu.cn/form/${v.view_id}`;
+              text += `${v.name}\n${url}\n\n`;
+              allLinks += `${v.name}ï¼š${url}\n`;
             }
+          }
         }
+        $("result").innerText = text || "æœªæ‰¾åˆ°è¡¨å•";
+      } catch (e) {
+        $("result").innerText = "é”™è¯¯ï¼š" + e.message;
+      }
+    }
 
-        async function getViewList(baseId) {
-            try {
-                let tokenRes = await lark.auth.getTenantAccessToken();
-                let token = tokenRes.tenant_access_token;
-                let url = `https://open.feishu.cn/open-apis/bitable/v1/apps/${baseId}/tables?page_size=100`;
-                let resp = await fetch(url, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                let json = await resp.json();
-                let allViews = [];
-                if (json.data && json.data.items) {
-                    json.data.items.forEach(table => {
-                        if (table.views) table.views.forEach(v => allViews.push(v));
-                    });
-                }
-                return allViews;
-            } catch (err) {
-                throw new Error("»ñÈ¡ÊÓÍ¼ÁĞ±íÊ§°Ü£º" + err.message);
-            }
-        }
-
-        function copyAll() {
-            if (!copyText) {
-                alert("ÇëÏÈ»ñÈ¡±íµ¥Á´½Ó£¡");
-                return;
-            }
-            navigator.clipboard.writeText(copyText).then(() => {
-                alert("ÒÑ¸´ÖÆµ½¼ôÌù°å£¡");
-            }).catch(err => {
-                alert("¸´ÖÆÊ§°Ü£¬ÇëÊÖ¶¯¸´ÖÆ");
-            });
-        }
-    </script>
+    function copyAll() {
+      if (!allLinks) return alert("è¯·å…ˆè·å–è¡¨å•");
+      navigator.clipboard.writeText(allLinks).then(()=>alert("å¤åˆ¶æˆåŠŸï¼"));
+    }
+  </script>
 </body>
 </html>
