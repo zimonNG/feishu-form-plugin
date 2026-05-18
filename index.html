@@ -2,51 +2,57 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>表单链接工具</title>
-  <script src="https://lf6-cn-toutiao.byteintl.net/obj/feishu-open-platform/feishu-sdk/feishu-sdk.min.js"></script>
+  <title>表单链接汇总</title>
+  <script src="https://sf3-cn.feishucdn.com/obj/open-platform-opensdk/lark/2.1.14/lark.js"></script>
   <style>
-    *{margin:0;padding:10px;box-sizing:border-box;font-family:system-ui;}
-    button{padding:12px 16px;background:#0066ff;color:white;border:none;border-radius:8px;margin:10px;cursor:pointer;}
-    #result{white-space:pre-wrap;line-height:1.6;}
+    body { padding: 15px; font-size: 14px; }
+    .item { margin: 8px 0; padding: 6px; border: 1px solid #eee; border-radius: 4px; }
+    .btn { background: #2663eb; color: #fff; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin: 10px 0; }
   </style>
 </head>
 <body>
-  <button onclick="getForms()">获取所有表单链接</button>
-  <button onclick="copyAll()">复制全部链接</button>
-  <div id="result"></div>
+    <button class="btn" onclick="getAllForm()">获取本表所有表单链接</button>
+    <button class="btn" onclick="copyAll()">一键复制所有链接</button>
+    <div id="list"></div>
 
-  <script>
-    let allLinks = "";
-    const $ = id => document.getElementById(id);
+    <script>
+        let copyText = "";
+        lark.init({ appId: "cli_aa8028ca6d38dbeb" });
 
-    async function getForms() {
-      try {
-        $("result").innerText = "加载中...";
-        const info = await window.feishu.bitable.getAppInfo();
-        const tables = await window.feishu.bitable.listTables();
-        let text = "";
-        allLinks = "";
-
-        for (let table of tables) {
-          const views = await window.feishu.bitable.listViews({ table_id: table.table_id });
-          for (let v of views) {
-            if (v.type === "form") {
-              const url = `https://feishu.cn/form/${v.view_id}`;
-              text += `${v.name}\n${url}\n\n`;
-              allLinks += `${v.name}：${url}\n`;
+        async function getAllForm() {
+            copyText = "";
+            document.getElementById("list").innerHTML = "加载中...";
+            try {
+                // 直接用飞书SDK自带方法获取数据，不用fetch和token
+                const tableList = await lark.bitable.listTables();
+                let html = "";
+                tableList.forEach(async (table) => {
+                    const views = await lark.bitable.listViews({ table_id: table.table_id });
+                    views.forEach(item => {
+                        if (item.type === "form") {
+                            let formLink = `https://feishu.cn/form/${item.view_id}`;
+                            html += `<div class="item">${item.name}：<a href="${formLink}" target="_blank">${formLink}</a></div>`;
+                            copyText += `${item.name}：${formLink}\n`;
+                        }
+                    });
+                    document.getElementById("list").innerHTML = html || "未找到任何表单";
+                });
+            } catch (err) {
+                document.getElementById("list").innerHTML = `获取失败：${err.message}`;
             }
-          }
         }
-        $("result").innerText = text || "未找到表单";
-      } catch (e) {
-        $("result").innerText = "错误：" + e.message;
-      }
-    }
 
-    function copyAll() {
-      if (!allLinks) return alert("请先获取表单");
-      navigator.clipboard.writeText(allLinks).then(()=>alert("复制成功！"));
-    }
-  </script>
+        function copyAll() {
+            if (!copyText) {
+                alert("请先获取表单链接！");
+                return;
+            }
+            navigator.clipboard.writeText(copyText).then(() => {
+                alert("已复制到剪贴板！");
+            }).catch(err => {
+                alert("复制失败，请手动复制");
+            });
+        }
+    </script>
 </body>
 </html>
