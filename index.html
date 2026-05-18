@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>表单链接一键汇总</title>
+    <script src="https://sf3-cn.feishucdn.com/obj/open-platform-opensdk/lark/2.1.14/lark.js"></script>
+    <style>
+        body{padding:15px;font-size:14px;}
+        .item{margin:8px 0;padding:6px;border:1px #eee solid;border-radius:4px;}
+        .btn{background:#2663eb;color:#fff;border:none;padding:8px 15px;border-radius:4px;cursor:pointer;margin:10px 0;}
+    </style>
+</head>
+<body>
+    <button class="btn" onclick="getAllForm()">一键获取本表所有表单</button>
+    <button class="btn" onclick="copyAll()">一键复制全部</button>
+    <div id="list"></div>
+    <script>
+        let copyText = "";
+        // 已填入你的AppID
+        lark.init({appId:"cli_aa8028ca6d38dbeb"});
+
+        async function getAllForm(){
+            copyText = "";
+            document.getElementById("list").innerHTML = "加载中...";
+            let res = await lark.bitable.getActiveTable();
+            let baseId = res.baseId;
+            let views = await getViewList(baseId);
+            let html = "";
+            views.forEach(item=>{
+                if(item.type === "form"){
+                    let formLink = `https://feishu.cn/form/${item.view_id}`;
+                    html += `<div class="item">${item.name}：${formLink}</div>`;
+                    copyText += `${item.name}：${formLink}\n`;
+                }
+            })
+            document.getElementById("list").innerHTML = html;
+        }
+
+        async function getViewList(baseId){
+            let token = await getTenantToken();
+            let url = `https://open.feishu.cn/open-apis/bitable/v1/apps/${baseId}/tables?page_size=100`;
+            let resp = await fetch(url,{
+                headers:{Authorization:`Bearer ${token}`}
+            })
+            let json = await resp.json();
+            let allViews = [];
+            if(json.data && json.data.items){
+                json.data.items.forEach(table=>{
+                    if(table.views) table.views.forEach(v=>allViews.push(v))
+                })
+            }
+            return allViews;
+        }
+
+        // 已填入你的密钥
+        async function getTenantToken(){
+            let id = "cli_aa8028ca6d38dbeb";
+            let secret = "z21NTB4hiR1Yqn8erflyeifyHEAboROS";
+            let res = await fetch("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",{
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({app_id:id,app_secret:secret})
+            })
+            let d = await res.json();
+            return d.tenant_access_token;
+        }
+
+        function copyAll(){
+            let input = document.createElement('textarea');
+            input.value = copyText;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('Copy');
+            input.remove();
+            alert("已复制全部表单名称+链接，直接发送即可！");
+        }
+    </script>
+</body>
+</html>
